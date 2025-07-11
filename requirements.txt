@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+sentence-transformers
+PyMuPDF
+pandas
+openpyxl
+xlrd
+lxml
+pytesseract
+Pillow
+chromadb-client
+numpy

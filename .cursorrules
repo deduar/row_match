@@ -1,0 +1,289 @@
+# Bank Transactions Project - Cursor Rules
+
+## Project Overview
+This is a bank transactions management system. All code should prioritize security, data integrity, and user privacy.
+
+## General Coding Standards
+
+### Code Style
+- Use consistent indentation (2 spaces for JavaScript/TypeScript, 4 spaces for Python)
+- Follow camelCase for variables and functions
+- Use PascalCase for classes and components
+- Use UPPER_SNAKE_CASE for constants
+- Always add semicolons in JavaScript/TypeScript
+- Use meaningful variable and function names
+- Keep functions small and focused (max 50 lines)
+- Add JSDoc comments for all public functions and classes
+
+### File Organization
+- Separate concerns: models, controllers, services, utilities
+- Use feature-based folder structure
+- Keep related files together
+- Use index files for clean imports
+
+## Security Guidelines
+
+### Data Protection
+- NEVER log sensitive data (account numbers, SSNs, passwords)
+- Always encrypt sensitive data at rest and in transit
+- Use environment variables for API keys and secrets
+- Implement proper input validation and sanitization
+- Use parameterized queries to prevent SQL injection
+- Implement rate limiting for API endpoints
+
+### Authentication & Authorization
+- Use JWT tokens for authentication
+- Implement role-based access control (RBAC)
+- Always verify user permissions before data access
+- Use HTTPS for all communications
+- Implement session timeout and automatic logout
+
+### Financial Data Handling
+- Use decimal types for monetary calculations (avoid floating point)
+- Implement audit trails for all financial transactions
+- Use database transactions for data consistency
+- Validate transaction amounts and account balances
+- Implement proper error handling for failed transactions
+
+## Database Guidelines
+
+### Schema Design
+- Use UUIDs for primary keys when possible
+- Implement proper foreign key constraints
+- Use appropriate data types (DECIMAL for money, TIMESTAMP for dates)
+- Add indexes for frequently queried columns
+- Use soft deletes for important data
+
+### Query Optimization
+- Use database transactions for related operations
+- Implement proper pagination for large datasets
+- Use database indexes strategically
+- Avoid N+1 query problems
+- Use database views for complex queries
+
+## API Design
+
+### RESTful Endpoints
+- Use proper HTTP methods (GET, POST, PUT, DELETE)
+- Return appropriate HTTP status codes
+- Implement consistent error response format
+- Use plural nouns for resource endpoints
+- Implement proper pagination and filtering
+
+### Response Format
+```json
+{
+  "success": true,
+  "data": {},
+  "message": "Operation successful",
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+```
+
+### Error Response Format
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid input data",
+    "details": []
+  },
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+```
+
+## Frontend Guidelines
+
+### Component Structure
+- Use functional components with hooks
+- Implement proper prop validation
+- Use TypeScript for type safety
+- Keep components small and reusable
+- Implement proper error boundaries
+
+### State Management
+- Use React Context for global state
+- Implement proper loading states
+- Handle errors gracefully
+- Use optimistic updates where appropriate
+
+### UI/UX
+- Implement responsive design
+- Use consistent color scheme and typography
+- Add loading indicators for async operations
+- Implement proper form validation
+- Use accessible HTML elements and ARIA labels
+
+## Testing Guidelines
+
+### Unit Tests
+- Write tests for all business logic
+- Mock external dependencies
+- Test edge cases and error scenarios
+- Maintain high test coverage (>80%)
+- Use descriptive test names
+
+### Integration Tests
+- Test API endpoints
+- Test database operations
+- Test authentication flows
+- Test error handling
+
+## Performance Guidelines
+
+### Backend
+- Implement caching for frequently accessed data
+- Use connection pooling for database
+- Implement proper logging and monitoring
+- Use async/await for I/O operations
+- Implement proper error handling
+
+### Frontend
+- Implement code splitting
+- Use lazy loading for components
+- Optimize bundle size
+- Implement proper caching strategies
+- Use virtual scrolling for large lists
+
+## Documentation
+
+### Code Documentation
+- Add README files for each major component
+- Document API endpoints with examples
+- Add inline comments for complex logic
+- Maintain up-to-date API documentation
+
+### Setup Instructions
+- Document environment setup
+- Include database migration instructions
+- Document deployment procedures
+- Add troubleshooting guides
+
+## Git Guidelines
+
+### Commit Messages
+- Use conventional commit format
+- Write descriptive commit messages
+- Reference issue numbers when applicable
+- Keep commits atomic and focused
+
+### Branch Strategy
+- Use feature branches for new development
+- Implement proper code review process
+- Use semantic versioning for releases
+- Maintain clean git history
+
+## Environment Configuration
+
+### Development
+- Use .env files for configuration
+- Never commit sensitive data
+- Use different databases for dev/staging/prod
+- Implement proper logging levels
+
+### Production
+- Use environment variables for all secrets
+- Implement proper monitoring and alerting
+- Use SSL certificates
+- Implement backup strategies
+
+## Common Patterns
+
+### Transaction Processing
+```typescript
+// Example transaction processing pattern
+async function processTransaction(transaction: Transaction): Promise<Result> {
+  const db = await getConnection();
+  
+  try {
+    await db.beginTransaction();
+    
+    // Validate transaction
+    const validation = await validateTransaction(transaction);
+    if (!validation.isValid) {
+      throw new ValidationError(validation.errors);
+    }
+    
+    // Check account balance
+    const account = await getAccount(transaction.accountId);
+    if (account.balance < transaction.amount) {
+      throw new InsufficientFundsError();
+    }
+    
+    // Process transaction
+    await updateAccountBalance(transaction.accountId, -transaction.amount);
+    await createTransactionRecord(transaction);
+    
+    await db.commit();
+    return { success: true, transactionId: transaction.id };
+    
+  } catch (error) {
+    await db.rollback();
+    throw error;
+  }
+}
+```
+
+### Error Handling
+```typescript
+// Example error handling pattern
+class BankError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 500
+  ) {
+    super(message);
+    this.name = 'BankError';
+  }
+}
+
+class ValidationError extends BankError {
+  constructor(public details: string[]) {
+    super('Validation failed', 'VALIDATION_ERROR', 400);
+  }
+}
+```
+
+## Technology Stack Recommendations
+
+### Backend
+- Node.js with Express or Fastify
+- TypeScript for type safety
+- PostgreSQL for database
+- Redis for caching
+- JWT for authentication
+
+### Frontend
+- React with TypeScript
+- Material-UI or Ant Design for components
+- React Query for data fetching
+- React Router for navigation
+- Jest for testing
+
+### DevOps
+- Docker for containerization
+- GitHub Actions for CI/CD
+- AWS or similar for hosting
+- Prometheus/Grafana for monitoring
+
+## Security Checklist
+
+- [ ] Input validation on all endpoints
+- [ ] SQL injection prevention
+- [ ] XSS protection
+- [ ] CSRF protection
+- [ ] Rate limiting implemented
+- [ ] HTTPS enforced
+- [ ] Sensitive data encrypted
+- [ ] Audit logging enabled
+- [ ] Error messages don't leak sensitive info
+- [ ] Authentication properly implemented
+- [ ] Authorization checks in place
+- [ ] Session management secure
+- [ ] Database connections secured
+- [ ] API keys rotated regularly
+- [ ] Dependencies updated regularly
+
+Remember: Security is paramount in financial applications. Always err on the side of caution and implement defense in depth. 

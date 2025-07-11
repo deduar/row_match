@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Define el servicio de nuestra API
+  row-match-api:
+    container_name: row_match_api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      - chroma-db
+    environment:
+      - CHROMA_HOST=chroma-db
+    # Healthcheck para asegurar que la API esté lista antes de que otros servicios dependan de ella
+    healthcheck:
+      # El comando intenta hacer curl al endpoint raíz. -f falla si hay un error HTTP.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Define el servicio para la base de datos vectorial ChromaDB
+  chroma-db:
+    container_name: chroma_db
+    image: chromadb/chroma
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    volumes:
+      - chroma_data:/chroma/.chroma/index
+
+  # Define el servicio para el frontend de Streamlit
+  frontend:
+    container_name: row_match_frontend
+    build:
+      context: ./frontend
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+    # Modificamos depends_on para que espere a que el healthcheck de la API sea exitoso
+    depends_on:
+      row-match-api:
+        condition: service_healthy
+    environment:
+      - API_URL=http://row-match-api:8000
+
+# Define la red para que los servicios se comuniquen por su nombre
+networks:
+  default:
+    name: row_match_network
+
+# Define el volumen de Docker para la persistencia de datos
+volumes:
+  chroma_data:
+    driver: local
