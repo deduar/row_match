@@ -28,6 +28,12 @@ def upload_file(collection_name, uploaded_file):
     """Sube un archivo a una colección específica a través de la API."""
     if uploaded_file is None:
         return None
+
+    # Verificar si un archivo con el mismo nombre ya existe
+    existing_files = get_files_from_collection(collection_name)
+    if any(f['filename'] == uploaded_file.name for f in existing_files):
+        st.warning(f"Un archivo con el nombre '{uploaded_file.name}' ya existe en la colección. No se procesará de nuevo.")
+        return None
     
     files = {'file': (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
     try:
