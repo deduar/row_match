@@ -18,21 +18,22 @@ def calculate_cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     similarity = dot_product / ((norm_v1 * norm_v2) + epsilon)
     return float(similarity)
 
-def calculate_structural_similarity(text1: str, text2: str) -> float:
+def calculate_structural_similarity(text1: str, text2: str, min_digits: int = 5) -> float:
     """
     Calcula una puntuación de similitud estructural basada en la coincidencia de
-    códigos numéricos largos (5 o más dígitos).
+    códigos numéricos largos.
 
     Args:
         text1: El primer fragmento de texto.
         text2: El segundo fragmento de texto.
+        min_digits: El número mínimo de dígitos para considerar un código.
 
     Returns:
         1.0 si se encuentra una coincidencia de código, 0.0 en caso contrario.
     """
-    # Expresión regular para encontrar secuencias de 5 o más dígitos.
+    # Expresión regular para encontrar secuencias de 'min_digits' o más dígitos.
     # Esto ayuda a filtrar números pequeños y enfocarse en posibles IDs o referencias.
-    regex = re.compile(r'\d{5,}')
+    regex = re.compile(rf'\d{{{min_digits},}}')
     
     # Extraer todos los "códigos" de cada texto.
     codes1 = set(regex.findall(text1))

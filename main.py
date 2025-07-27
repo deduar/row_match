@@ -32,6 +32,8 @@ class ComparisonItem(BaseModel):
 class ComparisonRequest(BaseModel):
     item1: ComparisonItem
     item2: ComparisonItem
+    min_digits: int = 5
+    min_digits: int = 5
 
 class MatchFilesRequest(BaseModel):
     bank_movements_hash: str
@@ -79,7 +81,7 @@ async def create_embeddings_from_file(collection_name: CollectionName, file: Upl
 
 @app.post("/match-files",
           summary="Realiza un matching entre un archivo de movimientos bancarios y un reporte de FM")
-def match_files(request: MatchFilesRequest, min_score_threshold: float = 0.8):
+def match_files(request: MatchFilesRequest, min_score_threshold: float = 0.8, min_digits: int = 5):
     logger.info(f"Iniciando proceso de matching con umbral de score >= {min_score_threshold}")
     bank_chunks = get_all_chunks_by_hash(CollectionName.bank_movements.value, request.bank_movements_hash)
     fm_chunks = get_all_chunks_by_hash(CollectionName.fm_report.value, request.fm_report_hash)
@@ -94,7 +96,7 @@ def match_files(request: MatchFilesRequest, min_score_threshold: float = 0.8):
         best_match = {"fm_chunk_id": None, "combined_score": -1.0}
         for fm_chunk in fm_chunks:
             cosine_sim = calculate_cosine_similarity(bank_chunk["embedding"], fm_chunk["embedding"])
-            struct_sim = calculate_structural_similarity(bank_chunk["document"], fm_chunk["document"])
+            struct_sim = calculate_structural_similarity(bank_chunk["document"], fm_chunk["document"], min_digits)
             combined_score = (0.7 * struct_sim) + (0.3 * cosine_sim)
             if combined_score > best_match["combined_score"]:
                 best_match = {
@@ -131,7 +133,7 @@ def compare_two_chunks(request: ComparisonRequest):
     if not item2_data or "error" in item2_data:
         raise HTTPException(status_code=404, detail=f"Item 2 con ID '{request.item2.item_id}' no encontrado.")
     cosine_score = calculate_cosine_similarity(item1_data.get("embedding"), item2_data.get("embedding"))
-    structural_score = calculate_structural_similarity(item1_data.get("document", ""), item2_data.get("document", ""))
+    structural_score = calculate_structural_similarity(item1_data.get("document", ""), item2_data.get("document", ""), request.min_digits)
     return {
         "cosine_similarity": cosine_score, "structural_similarity": structural_score,
         "item1": {"id": item1_data["id"], "document": item1_data["document"], "metadata": item1_data["metadata"]},
