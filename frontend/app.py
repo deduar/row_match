@@ -120,28 +120,45 @@ else:
     with col3:
         selected_fm_display = st.selectbox("Selecciona el Reporte de FM a conciliar:", options=fm_options.keys())
     with col4:
-        selected_bank_display = st.selectbox("Selecciona el archivo de Movimientos de Banco:", options=bank_options.keys())
+        # Cambiado de selectbox a multiselect para permitir selección múltiple
+        selected_bank_displays = st.multiselect("Selecciona los archivos de Movimientos de Banco:", options=bank_options.keys(), 
+                                               help="Puedes seleccionar múltiples archivos para conciliar contra el Reporte de FM")
 
     # threshold = st.slider("Umbral de Confianza (Score Combinado Mínimo):", min_value=0.0, max_value=1.0, value=0.8, step=0.05)
 
     threshold = 0.2
 
     if st.button("Iniciar Conciliación", type="primary"):
-        selected_fm_hash = fm_options[selected_fm_display]
-        selected_bank_hash = bank_options[selected_bank_display]
-        
-        results = match_files(selected_bank_hash, selected_fm_hash, threshold)
-        
-        if results is not None:
-            st.subheader(f"Resultados de la Conciliación ({len(results)} coincidencias encontradas)")
+        if not selected_bank_displays:
+            st.warning("Por favor, selecciona al menos un archivo de Movimientos de Banco.")
+        else:
+            selected_fm_hash = fm_options[selected_fm_display]
             
-            if not results:
-                st.warning("No se encontraron coincidencias que superen el umbral de confianza especificado.")
-            else:
+            # Contenedor para todos los resultados
+            all_results = []
+            
+            # Procesar cada archivo de banco seleccionado
+            for selected_bank_display in selected_bank_displays:
+                selected_bank_hash = bank_options[selected_bank_display]
+                
+                with st.spinner(f"Conciliando {selected_bank_display}..."):
+                    results = match_files(selected_bank_hash, selected_fm_hash, threshold)
+                    
+                    if results is not None and results:
+                        # Añadir el nombre del archivo a cada resultado para identificación
+                        for res in results:
+                            res["source_file"] = selected_bank_display
+                        all_results.extend(results)
+            
+            # Mostrar resultados combinados
+            if all_results:
+                st.subheader(f"Resultados de la Conciliación ({len(all_results)} coincidencias encontradas)")
+                
                 # Preparar datos para el DataFrame
                 display_data = []
-                for res in results:
+                for res in all_results:
                     display_data.append({
+                        "Archivo de Origen": res["source_file"],
                         "Movimiento Bancario": res["bank_movement_chunk"]["document"],
                         "Mejor Coincidencia en Reporte": res["best_match_in_fm_report"]["fm_chunk_document"],
                         # "Score Combinado": f'{res["best_match_in_fm_report"]["combined_score"]:.2f}',
@@ -151,3 +168,5 @@ else:
                 
                 df = pd.DataFrame(display_data)
                 st.dataframe(df, use_container_width=True)
+            else:
+                st.warning("No se encontraron coincidencias que superen el umbral de confianza especificado.")
