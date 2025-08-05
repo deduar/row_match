@@ -47,7 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copiar el entorno virtual con las dependencias ya instaladas desde la fase de construcción
 COPY --from=builder /app/.venv ./.venv
 
-# Copiar el código fuente de la aplicación
+# Copiar el código fuente de la aplicación (en desarrollo, esto será sobrescrito por volúmenes)
 COPY . .
 
 # Activar el entorno virtual para los comandos subsiguientes
@@ -56,6 +56,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Exponer el puerto en el que se ejecutará la aplicación
 EXPOSE 8000
 
-# Comando para ejecutar la aplicación usando Uvicorn
+# Comando para ejecutar la aplicación usando Uvicorn con reload para desarrollo
 # --host 0.0.0.0 permite que el servidor sea accesible desde fuera del contenedor
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --reload habilita el auto-reload cuando hay cambios en el código (solo para desarrollo)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -14,6 +14,10 @@ services:
       - chroma-db
     environment:
       - CHROMA_HOST=chroma-db
+    # Volúmenes para desarrollo - permite que los cambios en el código se reflejen automáticamente
+    volumes:
+      - .:/app
+      - /app/.venv  # Excluir el entorno virtual para evitar conflictos
     # Healthcheck para asegurar que la API esté lista antes de que otros servicios dependan de ella
     healthcheck:
       # El comando intenta hacer curl al endpoint raíz. -f falla si hay un error HTTP.
@@ -47,6 +51,10 @@ services:
         condition: service_healthy
     environment:
       - API_URL=http://row-match-api:8000
+    # Volúmenes para desarrollo - permite que los cambios en el código se reflejen automáticamente
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/.venv  # Excluir el entorno virtual para evitar conflictos
 
 # Define la red para que los servicios se comuniquen por su nombre
 networks:
