@@ -122,7 +122,9 @@ else:
     with col4:
         selected_bank_display = st.selectbox("Selecciona el archivo de Movimientos de Banco:", options=bank_options.keys())
 
-    threshold = st.slider("Umbral de Confianza (Score Combinado Mínimo):", min_value=0.0, max_value=1.0, value=0.8, step=0.05)
+    # threshold = st.slider("Umbral de Confianza (Score Combinado Mínimo):", min_value=0.0, max_value=1.0, value=0.8, step=0.05)
+
+    threshold = 0.2
 
     if st.button("Iniciar Conciliación", type="primary"):
         selected_fm_hash = fm_options[selected_fm_display]
@@ -142,9 +144,9 @@ else:
                     display_data.append({
                         "Movimiento Bancario": res["bank_movement_chunk"]["document"],
                         "Mejor Coincidencia en Reporte": res["best_match_in_fm_report"]["fm_chunk_document"],
-                        "Score Combinado": f'{res["best_match_in_fm_report"]["combined_score"]:.2f}',
-                        "Similitud Semántica": f'{res["best_match_in_fm_report"]["cosine_similarity"]:.2f}',
-                        "Similitud Estructural": f'{res["best_match_in_fm_report"]["structural_similarity"]:.2f}',
+                        # "Score Combinado": f'{res["best_match_in_fm_report"]["combined_score"]:.2f}',
+                        # "Similitud Semántica": f'{res["best_match_in_fm_report"]["cosine_similarity"]:.2f}',
+                        # "Similitud Estructural": f'{res["best_match_in_fm_report"]["structural_similarity"]:.2f}',
                     })
                 
                 df = pd.DataFrame(display_data)
