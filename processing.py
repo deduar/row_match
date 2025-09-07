@@ -12,6 +12,91 @@ from logging_config import logger
 
 # --- Funciones para identificar y validar movimientos bancarios ---
 
+def is_institutional_info(line: str) -> bool:
+    """
+    Determina si una línea contiene información institucional de un banco.
+    
+    Args:
+        line: La línea de texto a evaluar
+        
+    Returns:
+        True si la línea parece ser información institucional, False en caso contrario
+    """
+    line_lower = line.lower()
+    
+    # 1. Verificar palabras clave institucionales comunes
+    institutional_keywords = [
+        "banco", "universal", "capital", "autorizado", "suscrito", "pagado",
+        "rif", "j-", "apartado", "postal", "c.a.", "s.a.", "compañía anónima",
+        "dirección", "teléfono", "atención", "horario", "sucursal", "oficina",
+        "casa matriz", "sede principal", "central", "contacto", "servicio al cliente",
+        "banesco", "estado de cuenta", "resumen de movimientos", "resumen de saldos",
+        "expansión monetaria", "república bolivariana", "monetario nacional",
+        "detalle de movimientos", "cheques", "otros débitos", "otros créditos",
+        "bbva provincial", "titular", "nro. de cuenta", "situación al", "detalle de movimientos",
+        "f. oper", "ref.", "concepto", "f. valor", "cargos", "abonos", "saldo",
+        "saldo anterior", "expresión monetaria", "bolivares", "bolívares", "línea provincial",
+        "confirmar", "validar", "copia de estado", "número de confirmación"
+    ]
+    
+    keyword_count = sum(1 for keyword in institutional_keywords if keyword in line_lower)
+    if keyword_count >= 2:  # Si hay 2 o más palabras clave institucionales
+        return True
+    
+    # 2. Verificar patrones específicos de información institucional
+    institutional_patterns = [
+        r'(?i)banco\s+\w+',  # Nombre de banco (Banco Provincial, Banco de Venezuela, etc.)
+        r'(?i)capital\s+(autorizado|suscrito|pagado)',  # Información de capital
+        r'(?i)rif\.?\s*[a-z]-\d+',  # Formato de RIF
+        r'(?i)apartado\s+postal',  # Apartado postal
+        r'(?i)[a-z]\.?[a-z]\.?,?\s*banco',  # Formatos como C.A. Banco, S.A. Banco
+        r'(?i)bs\.?\s*[\d.,]+',  # Cantidades en Bs. (típico en información institucional)
+        r'(?i)estado\s+de\s+cuenta',  # Título del estado de cuenta
+        r'(?i)resumen\s+de\s+(movimientos|saldos)',  # Secciones de resumen
+        r'(?i)detalle\s+de\s+movimientos',  # Sección de detalle
+        r'(?i)(concepto|monto\s+total)',  # Encabezados de tabla
+        r'(?i)(otros\s+(débitos|créditos)|cheques)',  # Categorías de movimientos
+        r'(?i)(no\.\s+de\s+cuenta|fecha)',  # Información de cuenta y fecha
+        r'(?i)titular\s*:',  # Titular de la cuenta
+        r'(?i)situaci[óo]n\s+al\s*:',  # Fecha de situación
+        r'(?i)nro\.\s+de\s+cuenta\s*:',  # Número de cuenta
+        r'(?i)f\.\s+oper',  # Fecha de operación
+        r'(?i)f\.\s+valor',  # Fecha valor
+        r'(?i)saldo\s+anterior',  # Saldo anterior
+        r'(?i)bbva\s+provincial',  # Nombre del banco BBVA
+        r'(?i)puede\s+validar',  # Texto de validación
+        r'(?i)n[uú]mero\s+de\s+confirmaci[oó]n',  # Número de confirmación
+        r'(?i)expresi[oó]n\s+monetaria',  # Información sobre expresión monetaria
+        r'(?i)bol[ií]vares\s+anteriores',  # Información sobre bolívares
+    ]
+    
+    for pattern in institutional_patterns:
+        if re.search(pattern, line):
+            return True
+    
+    # 3. Verificar si contiene múltiples elementos típicos de información institucional
+    elements = [
+        r'(?i)\d{4}-[a-z]',  # Códigos postales (ej. 1010-A)
+        r'(?i)www\.',  # URLs
+        r'(?i)@',  # Correos electrónicos
+        r'(?i)tel[éf]fono',  # Menciones a teléfonos
+        r'(?i)fax',  # Menciones a fax
+        r'(?i)direcci[óo]n',  # Menciones a dirección
+        r'(?i)caracas',  # Menciones a ciudades principales
+        r'(?i)venezuela',  # Menciones al país
+    ]
+    
+    element_count = sum(1 for pattern in elements if re.search(pattern, line))
+    if element_count >= 1:  # Si hay al menos un elemento institucional
+        return True
+    
+    # 4. Verificar longitud y estructura
+    # Información institucional suele ser más larga y contener muchas comas
+    if len(line) > 100 and line.count(',') >= 3:
+        return True
+    
+    return False
+
 def is_bank_transaction(line: str) -> bool:
     """
     Determina si una línea de texto corresponde a un movimiento bancario.
@@ -29,6 +114,11 @@ def is_bank_transaction(line: str) -> bool:
     Returns:
         True si la línea parece ser un movimiento bancario, False en caso contrario
     """
+    # Primero verificamos si es información institucional
+    if is_institutional_info(line):
+        logger.debug(f"Línea rechazada por ser información institucional: {line[:50]}...")
+        return False
+    
     # Ignorar líneas muy cortas o demasiado largas (probablemente no son movimientos)
     if len(line) < 15 or len(line) > 200:
         return False
@@ -238,16 +328,50 @@ def _handle_pdf(file_content: bytes) -> List[str]:
                 if not line:
                     continue
                     
-                # Descartar líneas muy cortas o que contienen palabras clave institucionales obvias
+                # Descartar líneas muy cortas
                 if len(line) < 15:
                     continue
-                    
-                line_lower = line.lower()
-                if any(keyword in line_lower for keyword in ["capital autorizado", "rif. j-", "apartado postal", 
-                                                           "banco universal", "mercantil, c.a.", 
-                                                           "suscrito y pagado"]):
+                
+                # Verificar si es información institucional usando la función especializada
+                if is_institutional_info(line):
+                    logger.info(f"Pre-filtro: Línea identificada como información institucional: {line[:50]}...")
                     continue
-                    
+                
+                # Filtro explícito para la línea problemática y similares
+                if any(banco in line for banco in [
+                    "Mercantil, C.A., Banco Universal", 
+                    "Banco Provincial",
+                    "Banco de Venezuela",
+                    "Banesco Banco Universal",
+                    "Banesco",
+                    "BBVA Provincial",
+                    "Banco Nacional de Crédito",
+                    "Estado de cuenta",
+                    "Resumen de movimientos",
+                    "Resumen de saldos",
+                    "Detalle de movimientos",
+                    "TITULAR:",
+                    "ESTADO DE CUENTA CORRIENTE",
+                    "Nro. de Cuenta:",
+                    "Situación al:",
+                    "F. OPER",
+                    "F. VALOR",
+                    "ABONOS",
+                    "CARGOS",
+                    "SALDO"
+                ]):
+                    if ("Capital" in line or "RIF" in line or "Apartado" in line or 
+                        "RESUMEN" in line.upper() or "DETALLE" in line.upper() or 
+                        "CONCEPTO" in line.upper() or "DÉBITOS" in line.upper() or
+                        "CRÉDITOS" in line.upper() or "CHEQUES" in line.upper() or
+                        "MONETARIA" in line.upper() or "TITULAR" in line.upper() or
+                        "CUENTA" in line.upper() or "ESTADO DE" in line.upper() or
+                        "SITUACIÓN" in line.upper() or "ABONOS" in line.upper() or
+                        "CARGOS" in line.upper() or "SALDO" in line.upper() or
+                        "F. OPER" in line or "F. VALOR" in line or "REF." in line):
+                        logger.info(f"Pre-filtro: Línea de banco con información institucional: {line[:50]}...")
+                        continue
+                
                 filtered_lines.append(line)
             
             # Filtrar solo las líneas que parecen ser movimientos bancarios
@@ -384,16 +508,48 @@ def extract_chunks_from_file(file_content: bytes, filename: str) -> List[str]:
     extension = pathlib.Path(filename).suffix.lower()
     logger.info(f"Iniciando extracción de chunks para el archivo '{filename}' con extensión '{extension}'.")
 
+    # Obtener los chunks según el tipo de archivo
     if extension == ".pdf":
-        return _handle_pdf(file_content)
+        chunks = _handle_pdf(file_content)
     elif extension in [".xls", ".xlsx", ".csv"]:
-        return _handle_tabular(file_content, extension)
+        chunks = _handle_tabular(file_content, extension)
     elif extension in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff"]:
-        return _handle_image(file_content)
+        chunks = _handle_image(file_content)
     elif extension in [".txt", ".md", ".py", ".js", ".html", ".css"]:
-        return _handle_text(file_content)
+        chunks = _handle_text(file_content)
     else:
         logger.warning(f"Extensión '{extension}' no reconocida. Intentando procesar como archivo de texto plano por defecto.")
         # Como fallback, intenta procesarlo como un archivo de texto.
-        # Esto puede funcionar para muchos tipos de archivo basados en texto sin extensión conocida.
-        return _handle_text(file_content)
+        chunks = _handle_text(file_content)
+    
+    # Filtro final para asegurarnos de que no pasan líneas institucionales
+    filtered_chunks = []
+    for chunk in chunks:
+        # Usar la función especializada para detectar información institucional
+        if is_institutional_info(chunk):
+            logger.info(f"Filtro final: Eliminada línea institucional: {chunk[:50]}...")
+            continue
+            
+        # Filtro explícito para líneas de bancos conocidos con información institucional
+        chunk_upper = chunk.upper()
+        if any(banco.upper() in chunk_upper for banco in [
+            "MERCANTIL", "PROVINCIAL", "VENEZUELA", "BANESCO", "BBVA", 
+            "BANCO NACIONAL", "BNC", "BOD", "BANCO OCCIDENTAL", "BICENTENARIO",
+            "ESTADO DE CUENTA", "RESUMEN DE MOVIMIENTOS", "DETALLE DE MOVIMIENTOS",
+            "TITULAR", "SITUACIÓN AL", "NRO. DE CUENTA", "F. OPER", "F. VALOR",
+            "ABONOS", "CARGOS", "SALDO", "CONCEPTO", "REF."
+        ]):
+            # Si contiene palabras clave institucionales
+            if any(keyword.upper() in chunk_upper for keyword in [
+                "CAPITAL", "RIF", "APARTADO", "POSTAL", "C.A.", "S.A.", 
+                "UNIVERSAL", "AUTORIZADO", "SUSCRITO", "PAGADO", "RESUMEN",
+                "CONCEPTO", "DÉBITOS", "CRÉDITOS", "CHEQUES", "MONETARIA",
+                "EXPANSIÓN", "REPÚBLICA", "BOLIVARIANA", "NACIONAL"
+            ]):
+                logger.info(f"Filtro final: Eliminada línea de banco con información institucional: {chunk[:50]}...")
+                continue
+            
+        filtered_chunks.append(chunk)
+    
+    logger.info(f"Filtrado final: {len(chunks) - len(filtered_chunks)} chunks eliminados por filtros institucionales.")
+    return filtered_chunks
