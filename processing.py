@@ -120,14 +120,29 @@ def is_bank_transaction(line: str) -> bool:
         r'(?i)RIF\.?\s*[A-Z]-\d+',  # Patrón de RIF (Registro de Información Fiscal)
         r'(?i)apartado\s+postal',   # Menciones a apartado postal
         r'(?i)capital\s+(autorizado|suscrito|pagado)',  # Información de capital del banco
+        r'(?i)bs\.?\s*[\d.,]+',     # Mención de cantidades con Bs. (típico en información institucional)
+        r'(?i)mercantil.*banco\s+universal',  # Nombre del banco con su designación
+        r'(?i)caracas\s+\d+',       # Menciones a direcciones con códigos postales
+        r'(?i)venezuela',           # Mención al país
+        r'(?i)c\.?a\.?,?\s*banco',  # Formato de compañía anónima bancaria
         r'^\s*cuenta\s+\d+\s*$',    # Solo número de cuenta en la línea
         r'(?i)^(banco|oficina|sucursal)\s*$',  # Encabezados simples
-        r'(?i)^(desde|hasta)\s*$'   # Palabras sueltas de encabezados
+        r'(?i)^(desde|hasta)\s*$',   # Palabras sueltas de encabezados
+        r'(?i)nro\.?\s*\d+'         # Número de referencia institucional (no transaccional)
     ]
     
     for pattern in non_transaction_patterns:
         if re.search(pattern, line):
             return False
+            
+    # Verificación específica para líneas que contienen información institucional
+    # Si la línea contiene varias palabras clave institucionales juntas, es probable que no sea una transacción
+    institutional_keywords = ["capital", "autorizado", "suscrito", "pagado", "rif", "j-", "apartado", 
+                             "postal", "caracas", "venezuela", "mercantil", "banco universal"]
+    
+    keyword_count = sum(1 for keyword in institutional_keywords if keyword in line_lower)
+    if keyword_count >= 3:  # Si hay 3 o más palabras clave institucionales, no es una transacción
+        return False
     
     # Verificar si la línea tiene estructura de movimiento bancario
     # Un movimiento típico tiene fecha + referencia + descripción + monto + saldo
@@ -153,9 +168,12 @@ def is_bank_transaction(line: str) -> bool:
     date_ref_pattern = r'\d{1,2}[-/]\d{1,2}.*?\d{5,}'
     
     if re.search(date_ref_pattern, line) and has_amount:
-        # Verificamos que la línea no tenga características de información general
-        if not re.search(r'(?i)(capital|rif|apartado|banco universal|autorizado)', line):
-            return True
+        # Verificación adicional: la línea no debe ser demasiado larga
+        # Las transacciones bancarias suelen ser más concisas que la información institucional
+        if len(line) < 120:
+            # Verificamos que la línea no tenga características de información general
+            if not re.search(r'(?i)(capital|rif|apartado|banco universal|autorizado|mercantil|c\.a\.|venezuela)', line):
+                return True
     
     # Por defecto, rechazamos la línea si no ha pasado las verificaciones anteriores
     return False
@@ -212,10 +230,29 @@ def _handle_pdf(file_content: bytes) -> List[str]:
                 all_lines.extend(text.splitlines())
             logger.info("Extracción de texto del PDF completada.")
             
-            # Filtrar solo las líneas que parecen ser movimientos bancarios
+            # Pre-filtro para eliminar líneas que claramente no son movimientos
+            # Este paso ayuda a eliminar rápidamente encabezados, información institucional, etc.
+            filtered_lines = []
             for line in all_lines:
                 line = line.strip()
-                if line and is_bank_transaction(line):
+                if not line:
+                    continue
+                    
+                # Descartar líneas muy cortas o que contienen palabras clave institucionales obvias
+                if len(line) < 15:
+                    continue
+                    
+                line_lower = line.lower()
+                if any(keyword in line_lower for keyword in ["capital autorizado", "rif. j-", "apartado postal", 
+                                                           "banco universal", "mercantil, c.a.", 
+                                                           "suscrito y pagado"]):
+                    continue
+                    
+                filtered_lines.append(line)
+            
+            # Filtrar solo las líneas que parecen ser movimientos bancarios
+            for line in filtered_lines:
+                if is_bank_transaction(line):
                     transactions.append(line)
                     
                     # Opcionalmente, podemos extraer los componentes estructurados
